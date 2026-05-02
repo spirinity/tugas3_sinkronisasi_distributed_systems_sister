@@ -1,0 +1,424 @@
+openapi: "3.0.3"
+info:
+  title: Distributed Synchronization System API
+  version: "1.0.0"
+  description: API for the distributed lock manager, queue, cache, geo, and security system.
+
+servers:
+  - url: http://localhost:8001
+    description: Node 1 (us-east)
+  - url: http://localhost:8002
+    description: Node 2 (ap-southeast)
+  - url: http://localhost:8003
+    description: Node 3 (eu-west)
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [General]
+      responses:
+        "200":
+          description: Node is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node_id: { type: string }
+                  status: { type: string }
+                  region: { type: string }
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      tags: [General]
+      responses:
+        "200":
+          description: Metrics in Prometheus text format
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /lock/acquire:
+    post:
+      summary: Acquire a distributed lock
+      tags: [Lock Manager]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource]
+              properties:
+                resource: { type: string, description: "Resource to lock" }
+                client_id: { type: string, default: "anonymous" }
+                lock_type: { type: string, enum: [shared, exclusive], default: exclusive }
+                timeout: { type: number, description: "Lease timeout in seconds" }
+      responses:
+        "200":
+          description: Lock acquired or queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [acquired, waiting, failed] }
+                  fencing_token: { type: integer }
+        "307":
+          description: Not leader, redirect to leader
+
+  /lock/release:
+    post:
+      summary: Release a distributed lock
+      tags: [Lock Manager]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource]
+              properties:
+                resource: { type: string }
+                client_id: { type: string }
+      responses:
+        "200":
+          description: Lock released
+
+  /lock/status:
+    get:
+      summary: Get all lock statuses
+      tags: [Lock Manager]
+      responses:
+        "200":
+          description: Lock information
+
+  /lock/deadlocks:
+    get:
+      summary: Check for deadlocks
+      tags: [Lock Manager]
+      responses:
+        "200":
+          description: Deadlock detection result
+
+  /queue/enqueue:
+    post:
+      summary: Add message to distributed queue
+      tags: [Queue]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payload: { type: object }
+                partition_key: { type: string }
+      responses:
+        "200":
+          description: Message enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  msg_id: { type: string }
+                  assigned_node: { type: string }
+
+  /queue/dequeue:
+    post:
+      summary: Consume a message from the queue
+      tags: [Queue]
+      responses:
+        "200":
+          description: Message dequeued
+        "204":
+          description: Queue is empty
+
+  /queue/ack/{msg_id}:
+    post:
+      summary: Acknowledge a message
+      tags: [Queue]
+      parameters:
+        - name: msg_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Message acknowledged
+        "404":
+          description: Message not found
+
+  /queue/status:
+    get:
+      summary: Get queue statistics
+      tags: [Queue]
+      responses:
+        "200":
+          description: Queue stats
+
+  /cache/get/{key}:
+    get:
+      summary: Read from cache (MESI protocol)
+      tags: [Cache]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Cache hit
+        "404":
+          description: Cache miss
+
+  /cache/put:
+    post:
+      summary: Write to cache
+      tags: [Cache]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key: { type: string }
+                value: {}
+      responses:
+        "200":
+          description: Written successfully
+
+  /cache/invalidate/{key}:
+    delete:
+      summary: Invalidate cache entry
+      tags: [Cache]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Entry invalidated
+
+  /cache/stats:
+    get:
+      summary: Get cache performance statistics
+      tags: [Cache]
+      responses:
+        "200":
+          description: Cache stats including hit/miss rate
+
+  /geo/regions:
+    get:
+      summary: List all regions and nodes
+      tags: [Geo-Distributed]
+      responses:
+        "200":
+          description: Region information
+
+  /geo/latency:
+    get:
+      summary: View latency matrix and routing table
+      tags: [Geo-Distributed]
+      responses:
+        "200":
+          description: Latency data
+
+  /geo/replication-status:
+    get:
+      summary: View data replication status
+      tags: [Geo-Distributed]
+      responses:
+        "200":
+          description: Replication stats
+
+  /auth/token:
+    post:
+      summary: Authenticate and get a token
+      tags: [Security]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Token issued
+        "401":
+          description: Invalid credentials
+
+  /audit/logs:
+    get:
+      summary: Query audit logs
+      tags: [Audit]
+      parameters:
+        - name: user
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: Audit log entries
+
+  /audit/verify:
+    get:
+      summary: Verify audit log chain integrity
+      tags: [Audit]
+      responses:
+        "200":
+          description: Chain verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  entries: { type: integer }
+                  errors: { type: array, items: { type: object } }
+                  message: { type: string }
+
+  /status:
+    get:
+      summary: Full node status (all components)
+      tags: [General]
+      responses:
+        "200":
+          description: Complete node status overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node_id: { type: string }
+                  region: { type: string }
+                  raft: { type: object }
+                  locks: { type: integer }
+                  queue: { type: integer }
+                  cache_size: { type: integer }
+                  peers: { type: object }
+                  geo: { type: object }
+                  replication: { type: object }
+                  audit: { type: object }
+
+  /raft/status:
+    get:
+      summary: View Raft consensus state (leader/follower/candidate)
+      tags: [Raft Consensus]
+      responses:
+        "200":
+          description: Raft state info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node_id: { type: string }
+                  state: { type: string, enum: [leader, follower, candidate] }
+                  current_term: { type: integer }
+                  leader_id: { type: string }
+                  voted_for: { type: string }
+                  log_length: { type: integer }
+                  commit_index: { type: integer }
+                  last_applied: { type: integer }
+
+  /queue/ring:
+    get:
+      summary: View consistent hash ring topology
+      tags: [Queue]
+      responses:
+        "200":
+          description: Hash ring node distribution
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes: { type: array, items: { type: string } }
+                  total_vnodes: { type: integer }
+
+  /cache/state:
+    get:
+      summary: View all cache lines with MESI states
+      tags: [Cache]
+      responses:
+        "200":
+          description: All cache line details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cache_lines:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        key: { type: string }
+                        value: {}
+                        state: { type: string, enum: [M, E, S, I] }
+                        last_accessed: { type: number }
+                        access_count: { type: integer }
+                  total: { type: integer }
+
+  /auth/verify:
+    get:
+      summary: Verify an authentication token
+      tags: [Security]
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema: { type: string }
+          description: "Bearer token (format: Bearer <token>)"
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  user:
+                    type: object
+                    properties:
+                      username: { type: string }
+                      role: { type: string }
+        "401":
+          description: Token is invalid or expired
+
+  /security/certs:
+    get:
+      summary: View TLS certificate information
+      tags: [Security]
+      responses:
+        "200":
+          description: Certificate details (or TLS disabled message)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  node_id: { type: string }
+                  subject: { type: string }
+                  issuer: { type: string }
+                  not_valid_before: { type: string }
+                  not_valid_after: { type: string }
+                  serial_number: { type: string }

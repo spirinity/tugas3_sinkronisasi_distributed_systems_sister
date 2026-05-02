@@ -1,0 +1,93 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - distsync
+
+  node-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    environment:
+      - NODE_ID=node-1
+      - NODE_HOST=0.0.0.0
+      - NODE_PORT=8001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CLUSTER_NODES=node-1:8001,node-2:8002,node-3:8003
+      - NODE_REGION=us-east
+      - ENABLE_TLS=false
+      - ENABLE_RBAC=false
+      - LOG_LEVEL=INFO
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - distsync
+    restart: unless-stopped
+
+  node-2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    environment:
+      - NODE_ID=node-2
+      - NODE_HOST=0.0.0.0
+      - NODE_PORT=8002
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CLUSTER_NODES=node-1:8001,node-2:8002,node-3:8003
+      - NODE_REGION=ap-southeast
+      - ENABLE_TLS=false
+      - ENABLE_RBAC=false
+      - LOG_LEVEL=INFO
+    ports:
+      - "8002:8002"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - distsync
+    restart: unless-stopped
+
+  node-3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.node
+    environment:
+      - NODE_ID=node-3
+      - NODE_HOST=0.0.0.0
+      - NODE_PORT=8003
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CLUSTER_NODES=node-1:8001,node-2:8002,node-3:8003
+      - NODE_REGION=eu-west
+      - ENABLE_TLS=false
+      - ENABLE_RBAC=false
+      - LOG_LEVEL=INFO
+    ports:
+      - "8003:8003"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - distsync
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+
+networks:
+  distsync:
+    driver: bridge

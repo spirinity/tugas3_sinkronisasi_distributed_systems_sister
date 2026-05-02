@@ -1,0 +1,33 @@
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Create non-root user
+RUN useradd -m -r appuser
+
+# Copy installed packages
+COPY --from=builder /install /usr/local
+
+# Copy source code
+COPY src/ ./src/
+COPY docs/ ./docs/
+COPY .env.example .env
+
+# Set ownership
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${NODE_PORT:-8001}/health')" || exit 1
+
+EXPOSE ${NODE_PORT:-8001}
+
+CMD ["python", "-m", "src.main"]
