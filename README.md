@@ -1,162 +1,151 @@
-# Distributed Synchronization System
+# Tugas 3 Sistem Paralel dan Terdistribusi, Sinkronisasi dan Distributed Systems
 
-Implementasi sistem sinkronisasi terdistribusi yang mensimulasikan skenario real-world dari distributed systems. Sistem ini menangani multiple nodes yang berkomunikasi dan mensinkronisasi data secara konsisten.
+| | |
+|---|---|
+| **Nama** | Mahardika Arka |
+| **NIM** | 11231037 |
+| **Mata Kuliah** | Sistem Parallel & Terdistribusi  |
 
-## Features
+Implementasi sistem sinkronisasi terdistribusi yang mensimulasikan skenario *real-world* dari *distributed systems*. Sistem ini menangani multiple nodes yang berkomunikasi dan mensinkronisasi data secara konsisten, mencakup fitur **Distributed Lock Manager** (dengan Raft Consensus), **Distributed Queue** (dengan hashing & persistence), dan **Cache Coherence** (dengan protokol MESI), serta mendukung simulasi geo-distributed multi-region.
 
-### Core (70 poin)
-- **Distributed Lock Manager** — Raft Consensus, shared/exclusive locks, deadlock detection
-- **Distributed Queue** — Consistent hashing, at-least-once delivery, Redis persistence
-- **Cache Coherence** — MESI protocol, LRU replacement, invalidation propagation
-- **Containerization** — Docker multi-stage build, docker-compose orchestration
+## Video Tutorial Youtube:
+Link Video: https://youtu.be/N2JX5QzHRE0
 
-### Bonus (+10 poin)
-- **Geo-Distributed System** — Multi-region simulation, latency-aware routing, eventual consistency
-- **Security & Encryption** — mTLS, RBAC, tamper-proof audit logs
+---
 
-## Tech Stack
+## Arsitektur
 
-- **Language**: Python 3.11 (asyncio)
-- **HTTP**: aiohttp
-- **State Store**: Redis
-- **Containerization**: Docker & Docker Compose
-- **Testing**: pytest, locust
+![Arsitektur Sistem Sinkronisasi Terdistribusi](arsitektur.png)
 
-## Quick Start
+> Diagram di atas menggambarkan arsitektur dari sistem sinkronisasi terdistribusi yang mengintegrasikan berbagai node melalui protokol konsensus untuk manajemen *lock*, sistem antrean (*queue*) antar node, sinkronisasi *cache* antar region, dan komunikasi aman.
 
-### Docker (Recommended)
+## Struktur Proyek
+
+```text
+tugas3/
+├── src/
+│   ├── nodes/          # Implementasi Node API
+│   ├── consensus/      # Logika Raft consensus
+│   ├── communication/  # Message passing & failure detection
+│   ├── geo/            # Simulasi fitur Geo-distributed
+│   ├── security/       # TLS, RBAC, audit logging
+│   ├── utils/          # Config & metrics
+│   └── main.py         # Entry point aplikasi untuk tiap node
+├── tests/              # Unit & integration tests
+├── benchmarks/         # Script load testing (Locust)
+├── docker/             # Dockerfile & docker-compose.yml
+├── docs/               # Dokumentasi tambahan
+└── requirements.txt
+```
+
+---
+
+## Cara Menjalankan
+
+### Prasyarat
+- [Docker](https://www.docker.com/) & Docker Compose terinstal
+- Python 3.11 (jika ingin menjalankan manual di lokal)
+
+### 1. Menjalankan Cluster Server (Docker Compose - Direkomendasikan)
+
+Buka terminal dan jalankan:
 ```bash
 cd docker
 docker compose up --build
 ```
 
-Ini akan menjalankan:
-- **Redis** on port 6379
-- **Node 1** (us-east) on port 8001
-- **Node 2** (ap-southeast) on port 8002
-- **Node 3** (eu-west) on port 8003
+Ini akan menjalankan infrastruktur node berikut:
+- **Redis** pada port `6379`
+- **Node 1** (Region: us-east) pada port `8001`
+- **Node 2** (Region: ap-southeast) pada port `8002`
+- **Node 3** (Region: eu-west) pada port `8003`
 
-### Manual
+### 2. Menghentikan Server
+```bash
+cd docker
+docker compose down
+```
+
+---
+
+## Menjalankan Tanpa Docker (Lokal)
+
+Buka terminal berbeda untuk masing-masing perintah:
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Start Redis
+# Start Redis (Pastikan Redis server tersedia di port 6379)
 docker run -d -p 6379:6379 redis:7-alpine
 
-# Start nodes (in separate terminals)
+# Terminal 1 - Node 1
 NODE_ID=node-1 NODE_PORT=8001 NODE_REGION=us-east python -m src.main
+
+# Terminal 2 - Node 2
 NODE_ID=node-2 NODE_PORT=8002 NODE_REGION=ap-southeast python -m src.main
+
+# Terminal 3 - Node 3
 NODE_ID=node-3 NODE_PORT=8003 NODE_REGION=eu-west python -m src.main
 ```
 
-## API Endpoints
+---
 
-### Lock Manager
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/lock/acquire` | Acquire shared/exclusive lock |
-| POST | `/lock/release` | Release a lock |
-| GET | `/lock/status` | View all locks |
-| GET | `/lock/deadlocks` | Check for deadlocks |
+## 🔌 API Endpoints
 
-### Queue
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/queue/enqueue` | Add message to queue |
-| POST | `/queue/dequeue` | Consume a message |
-| POST | `/queue/ack/{id}` | Acknowledge message |
-| GET | `/queue/status` | Queue statistics |
+Sistem terbagi dalam beberapa modul. Berikut ini adalah Endpoint utama (bisa diakses di setiap port node, misal `http://localhost:8001`):
 
-### Cache
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/cache/get/{key}` | Read from cache |
-| POST | `/cache/put` | Write to cache |
-| DELETE | `/cache/invalidate/{key}` | Invalidate entry |
-| GET | `/cache/stats` | Performance stats |
+### Distributed Lock Manager
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| `POST` | `/lock/acquire` | Mengambil shared/exclusive lock |
+| `POST` | `/lock/release` | Melepas lock |
+| `GET`  | `/lock/status` | Melihat semua lock aktif |
+| `GET`  | `/lock/deadlocks` | Mengecek deadlock |
 
-### Geo-Distributed
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/geo/regions` | List all regions |
-| GET | `/geo/latency` | Latency matrix |
-| GET | `/geo/replication-status` | Replication status |
+### Distributed Queue
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| `POST` | `/queue/enqueue` | Memasukkan pesan ke queue |
+| `POST` | `/queue/dequeue` | Mengambil pesan |
+| `POST` | `/queue/ack/{id}`| Acknowledge pesan |
+| `GET`  | `/queue/status`  | Statistik queue |
 
-### Security
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/auth/token` | Get auth token |
-| GET | `/audit/logs` | Query audit logs |
-| GET | `/audit/verify` | Verify log integrity |
+### Cache Coherence
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| `GET`  | `/cache/get/{key}` | Membaca dari cache |
+| `POST` | `/cache/put` | Menyimpan data ke cache |
+| `DELETE`| `/cache/invalidate/{key}` | Menghapus entry cache |
 
-### General
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/metrics` | Prometheus metrics |
-| GET | `/status` | Full node status |
-| GET | `/raft/status` | Raft consensus state |
+### General & Security
+| Method | Endpoint | Deskripsi |
+|--------|----------|-----------|
+| `GET`  | `/geo/latency` | Matrix Latency antar region |
+| `GET`  | `/health` | Mengecek status kesehatan node |
+| `GET`  | `/raft/status` | Melihat state dari Raft consensus |
 
-## Usage Examples
+---
 
-### Acquire a Lock
+### Contoh Request `POST /lock/acquire`
 ```bash
 curl -X POST http://localhost:8001/lock/acquire \
   -H "Content-Type: application/json" \
   -d '{"resource": "db-connection", "client_id": "worker-1", "lock_type": "exclusive"}'
 ```
 
-### Enqueue a Message
-```bash
-curl -X POST http://localhost:8001/queue/enqueue \
-  -H "Content-Type: application/json" \
-  -d '{"payload": {"task": "process-data"}, "partition_key": "partition-1"}'
-```
+---
 
-### Cache Read/Write
-```bash
-# Write
-curl -X POST http://localhost:8001/cache/put \
-  -H "Content-Type: application/json" \
-  -d '{"key": "user:123", "value": {"name": "John"}}'
+## Testing & Benchmarks
 
-# Read
-curl http://localhost:8001/cache/get/user:123
-```
-
-## Testing
+Terdapat *test suite* untuk memastikan logika sinkronisasi dan distribusi berjalan dengan baik:
 
 ```bash
-# Unit tests
+# Menjalankan Unit tests
 pytest tests/unit/ -v
 
-# Integration tests (requires running cluster)
+# Menjalankan Integration tests (Node harus berjalan)
 pytest tests/integration/ -v -m integration
 
-# Load testing
+# Load Testing menggunakan Locust
 locust -f benchmarks/load_test_scenarios.py --host http://localhost:8001
-```
-
-## Architecture
-
-See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
-
-## Project Structure
-
-```
-distributed-sync-system/
-├── src/
-│   ├── nodes/          # Node implementations
-│   ├── consensus/      # Raft consensus
-│   ├── communication/  # Message passing & failure detection
-│   ├── geo/            # Geo-distributed features
-│   ├── security/       # TLS, RBAC, audit logging
-│   ├── utils/          # Config & metrics
-│   └── main.py         # Unified node entry point
-├── tests/              # Unit & integration tests
-├── benchmarks/         # Load testing
-├── docker/             # Dockerfile & docker-compose
-├── docs/               # Documentation
-└── requirements.txt
 ```
